@@ -179,7 +179,7 @@ void loop() {
 
 								sprintf(tmp_str,"\t\t\"%i\": {\n\t\t\t\"humidity\": %i,\n\t\t\t\"temperature\": %s\n\t\t}\n",pin,humidity,str_tempf);
 							} else {
-								sprintf(tmp_str,"\"%i\": \"error\"\n",pin);
+								sprintf(tmp_str,"\t\t\"%i\": \"error\"\n",pin);
 							}
 
 							strcat(body,tmp_str);
