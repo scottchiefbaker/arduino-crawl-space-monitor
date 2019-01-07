@@ -109,7 +109,7 @@ void loop() {
 
 						strcat(body,"\t\"digital\": {\n");
 
-						int minDigitalPin = 2;
+						int minDigitalPin = 3; // 0 and 1 are serial, and 2 is DS18B20
 						int maxDigitalPin = 14;
 
 						for (int dpin = minDigitalPin; dpin <= maxDigitalPin; dpin++) {
@@ -131,13 +131,13 @@ void loop() {
 						//////////////////////////////////////////////////////
 						// DS18BS20
 						//////////////////////////////////////////////////////
-						int    count = 8;
+						int    count       = 8;
+						int    ds18b20_pin = 2;
 						char   sensor_id[count][25];
 						float  sensor_value[count];
-						byte   sensor_pin = 2;
 
 						if (!quick) {
-							int found = get_ds_temp(sensor_pin, sensor_id, sensor_value);
+							int found = get_ds_temp(ds18b20_pin, sensor_id, sensor_value);
 
 							strcat(body,"\t\"DS18B20\": {\n");
 
