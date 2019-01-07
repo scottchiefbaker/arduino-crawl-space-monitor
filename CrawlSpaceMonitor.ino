@@ -71,6 +71,8 @@ void loop() {
 					Serial.print("Serving: ");
 					Serial.println(uri);
 
+					char *quick = strstr(uri,"quick");
+
 					/////////////////////////////////////////////////////
 
 					if (strcmp(uri,"/foo.html") == 0) {
@@ -134,51 +136,56 @@ void loop() {
 						float  sensor_value[count];
 						byte   sensor_pin = 2;
 
-						int found = get_ds_temp(sensor_pin, sensor_id, sensor_value);
+						if (!quick) {
+							int found = get_ds_temp(sensor_pin, sensor_id, sensor_value);
 
-						strcat(body,"\t\"DS18B20\": {\n");
+							strcat(body,"\t\"DS18B20\": {\n");
 
-						for (int i = 0; i < found; i++) {
-							char float_str[8] = "";
-							dtostrf(sensor_value[i],4,1,float_str);
+							for (int i = 0; i < found; i++) {
+								char float_str[8] = "";
+								dtostrf(sensor_value[i],4,1,float_str);
 
-							sprintf(tmp_str,"\t\t\"%s\": %s",sensor_id[i],float_str);
+								sprintf(tmp_str,"\t\t\"%s\": %s",sensor_id[i],float_str);
 
-							if (i < found - 1) {
-								strcat(tmp_str,",\n");
-							} else {
-								strcat(tmp_str,"\n");
+								if (i < found - 1) {
+									strcat(tmp_str,",\n");
+								} else {
+									strcat(tmp_str,"\n");
+								}
+
+								strcat(body,tmp_str);
 							}
-
-							strcat(body,tmp_str);
+							strcat(body,"\t},\n");
 						}
-						strcat(body,"\t},\n");
 
 						//////////////////////////////////////////////////////
 						// DHT11
 						//////////////////////////////////////////////////////
 
 						int pin = 28;
-						int ok  = init_dht11(pin, &DHT11);
 
-						strcat(body,"\t\"DHT11\": {\n");
+						if (!quick) {
+							int ok  = init_dht11(pin, &DHT11);
 
-						if (ok) {
-							// Get the humidity
-							int humidity = get_dht11_humidty(DHT11);
+							strcat(body,"\t\"DHT11\": {\n");
 
-							// Get the temperature as a string
-							char str_tempf[7] = ""; // char array to store the float value as a string
-							get_dht11_temp_string(DHT11, str_tempf);
+							if (ok) {
+								// Get the humidity
+								int humidity = get_dht11_humidty(DHT11);
 
-							sprintf(tmp_str,"\t\t\"%i\": {\n\t\t\t\"humidity\": %i,\n\t\t\t\"temperature\": %s\n\t\t}\n",pin,humidity,str_tempf);
-						} else {
-							sprintf(tmp_str,"\"%i\": \"error\"\n",pin);
+								// Get the temperature as a string
+								char str_tempf[7] = ""; // char array to store the float value as a string
+								get_dht11_temp_string(DHT11, str_tempf);
+
+								sprintf(tmp_str,"\t\t\"%i\": {\n\t\t\t\"humidity\": %i,\n\t\t\t\"temperature\": %s\n\t\t}\n",pin,humidity,str_tempf);
+							} else {
+								sprintf(tmp_str,"\"%i\": \"error\"\n",pin);
+							}
+
+							strcat(body,tmp_str);
+
+							strcat(body,"\t},\n");
 						}
-
-						strcat(body,tmp_str);
-
-						strcat(body,"\t},\n");
 
 						//////////////////////////////////////////////////////////
 					}
