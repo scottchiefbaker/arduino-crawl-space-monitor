@@ -109,7 +109,8 @@ void loop() {
 
 						strcat(body,"\t\"digital\": {\n");
 
-						int usableDigitalPins[] = { 3,4,5,6,7,8,9,11,12,13,14,15 }; // 0 and 1 are serial, 2 is DS18B20, 10 is Ethernet
+						// https://store.arduino.cc/usa/arduino-ethernet-rev3-with-poe
+						int usableDigitalPins[] = { 3,4,5,6,7,8,9,14,15,16,17,18 }; // 0 and 1 are serial, 2 is DS18B20, 10 is Ethernet
 						numPins                 = (sizeof(usableDigitalPins) / sizeof(usableDigitalPins[0]));
 
 						for (int i = 0; i < numPins; i++) {
