@@ -7,6 +7,7 @@ int   get_ds_temp(byte pin, char sensor_id[][25], float* sensor_value);
 int   init_dht11(int pin, dht11 *obj);
 float get_dht11_humidty(dht11 obj);
 char  *get_dht11_temp_string(dht11 obj, char *ret);
+char  *eos(char str[]);
 
 // Enter a MAC address and IP address for your controller below.
 // The IP address will be dependent on your local network:
@@ -279,6 +280,12 @@ float c_to_f(float tempC) {
   float tempF = (tempC * 9 / 5) + 32;
 
   return tempF;
+}
+
+// Return a point to the end of the string (good for appending with sprintf)
+// https://stackoverflow.com/questions/2674312/how-to-append-strings-using-sprintf
+char *eos(char str[]) {
+	return (str) + strlen(str);
 }
 
 int get_ds_temp(byte pin, char sensor_id[][25], float* sensor_value) {
