@@ -44,7 +44,6 @@ void loop() {
 		char body[1024]  = "";
 		char line[200]   = "";
 		char uri[30]     = "";
-		char tmp_str[40] = "";
 
 		Serial.println("new client");
 		// an http request ends with a blank line
@@ -93,15 +92,13 @@ void loop() {
 							int aPin          = usableAnalogPins[i];
 							int sensorReading = analogRead(aPin);
 
-							sprintf(tmp_str,"\t\t\"%i\": %d",aPin,sensorReading);
+							sprintf(eos(body),"\t\t\"%i\": %d",aPin,sensorReading);
 
 							if (i < numPins - 1) {
-								strcat(tmp_str,",\n");
+								strcat(body,",\n");
 							} else {
-								strcat(tmp_str,"\n");
+								strcat(body,"\n");
 							}
-
-							strcat(body,tmp_str);
 						}
 
 						strcat(body,"\t},\n");
@@ -119,15 +116,13 @@ void loop() {
 							int dpin  = usableDigitalPins[i];
 							int value = digitalRead(dpin);
 
-							sprintf(tmp_str,"\t\t\"%i\": %d",dpin,value);
+							sprintf(eos(body),"\t\t\"%i\": %d",dpin,value);
 
 							if (i < numPins - 1) {
-								strcat(tmp_str,",\n");
+								strcat(body,",\n");
 							} else {
-								strcat(tmp_str,"\n");
+								strcat(body,"\n");
 							}
-
-							strcat(body,tmp_str);
 						}
 
 						strcat(body,"\t},\n");
@@ -149,16 +144,15 @@ void loop() {
 								char float_str[8] = "";
 								dtostrf(sensor_value[i],4,1,float_str);
 
-								sprintf(tmp_str,"\t\t\"%s\": %s",sensor_id[i],float_str);
+								sprintf(eos(body),"\t\t\"%s\": %s",sensor_id[i],float_str);
 
 								if (i < found - 1) {
-									strcat(tmp_str,",\n");
+									strcat(body,",\n");
 								} else {
-									strcat(tmp_str,"\n");
+									strcat(body,"\n");
 								}
-
-								strcat(body,tmp_str);
 							}
+
 							strcat(body,"\t},\n");
 						}
 
@@ -181,12 +175,10 @@ void loop() {
 								char str_tempf[7] = ""; // char array to store the float value as a string
 								get_dht11_temp_string(DHT11, str_tempf);
 
-								sprintf(tmp_str,"\t\t\"%i\": {\n\t\t\t\"humidity\": %i,\n\t\t\t\"temperature\": %s\n\t\t}\n",dht11_pin,humidity,str_tempf);
+								sprintf(eos(body),"\t\t\"%i\": {\n\t\t\t\"humidity\": %i,\n\t\t\t\"temperature\": %s\n\t\t}\n",dht11_pin,humidity,str_tempf);
 							} else {
-								sprintf(tmp_str,"\t\t\"%i\": \"error\"\n",dht11_pin);
+								sprintf(eos(body),"\t\t\"%i\": \"error\"\n",dht11_pin);
 							}
-
-							strcat(body,tmp_str);
 
 							strcat(body,"\t},\n");
 						}
@@ -200,10 +192,8 @@ void loop() {
 
 					unsigned long int uptime_seconds = (millis() / 1000);
 
-					sprintf(tmp_str,"\t\"uptime\": %li,\n",uptime_seconds);
-					strcat(body,tmp_str);
-					sprintf(tmp_str,"\t\"hits\": %li\n",hits);
-					strcat(body,tmp_str);
+					sprintf(eos(body),"\t\"uptime\": %li,\n",uptime_seconds);
+					sprintf(eos(body),"\t\"hits\": %li\n",hits);
 
 					strcat(body,"}\n");
 
