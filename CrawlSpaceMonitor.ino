@@ -3,23 +3,28 @@
 #include <OneWire.h>
 #include <dht11.h>
 
+// Setup the MAC/IP address for the ethernet shield
+byte mac[] = { 0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xED };
+IPAddress ip(10, 1, 1, 160);
+
+// Start the web server on port 80
+EthernetServer server(80);
+
+// Glotal DHT11 object
+dht11 DHT11;
+
+// Number of hits the server has seen
+unsigned long hits = 1;
+
+////////////////////////////////////////////////////////////////////////////
+
 int   get_ds_temp(byte pin, char sensor_id[][25], float* sensor_value);
 int   init_dht11(int pin, dht11 *obj);
 float get_dht11_humidty(dht11 obj);
 char  *get_dht11_temp_string(dht11 obj, char *ret);
 char  *eos(char str[]);
 
-// Enter a MAC address and IP address for your controller below.
-// The IP address will be dependent on your local network:
-byte mac[] = { 0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xED };
-IPAddress ip(10, 1, 1, 160);
-
-dht11 DHT11; // Glotal DHT11 object
-
-// Initialize the Ethernet server library
-// with the IP address and port you want to use
-// (port 80 is default for HTTP):
-EthernetServer server(80);
+////////////////////////////////////////////////////////////////////////////
 
 void setup() {
 	// Open serial communications and wait for port to open:
@@ -30,13 +35,8 @@ void setup() {
 	server.begin();
 	Serial.print("server is at ");
 	Serial.println(Ethernet.localIP());
-
-	//for (int dpin = 2; dpin <= 10; dpin++) {
-	//    pinMode(dpin, INPUT);
-	//}
 }
 
-unsigned long hits = 1;
 void loop() {
 	// listen for incoming clients
 	EthernetClient client = server.available();
