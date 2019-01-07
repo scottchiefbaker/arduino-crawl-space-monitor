@@ -63,11 +63,10 @@ void loop() {
 				// so you can send a reply
 				if (c == '\n' && currentLineIsBlank) {
 					strcat(body,"HTTP/1.1 200 OK\n");
-					strcat(body,"Content-Type: text/html\n");
+					strcat(body,"Content-Type: application/json\n");
 					strcat(body,"Connection: close\nRefresh: 5\n");
 					strcat(body,"\n");
-					strcat(body,"<!DOCTYPE HTML>\n");
-					strcat(body,"<html>\n");
+					strcat(body,"{\n");
 
 					Serial.print("Serving: ");
 					Serial.println(uri);
@@ -81,26 +80,51 @@ void loop() {
 						// Analog
 						//////////////////////////////////////////////////////
 
+						strcat(body,"\t\"analog\": {\n");
+						int minAnalogChannel = 0;
+						int maxAnalogChannel = 8;
+
 						// output the value of each analog input pin
-						for (int analogChannel = 0; analogChannel < 6; analogChannel++) {
+						for (int analogChannel = minAnalogChannel; analogChannel <= maxAnalogChannel; analogChannel++) {
 							int sensorReading = analogRead(analogChannel);
 
-							sprintf(tmp_str,"Analog %i = %d<br />\n",analogChannel,sensorReading);
+							sprintf(tmp_str,"\t\t\"%i\": %d",analogChannel,sensorReading);
+
+							if (analogChannel >= maxAnalogChannel) {
+								strcat(tmp_str,"\n");
+							} else {
+								strcat(tmp_str,",\n");
+							}
 
 							strcat(body,tmp_str);
 						}
+
+						strcat(body,"\t},\n");
 
 						//////////////////////////////////////////////////////
 						// Digital
 						//////////////////////////////////////////////////////
 
-						for (int dpin = 2; dpin <= 10; dpin++) {
+						strcat(body,"\t\"digital\": {\n");
+
+						int minDigitalPin = 2;
+						int maxDigitalPin = 14;
+
+						for (int dpin = minDigitalPin; dpin <= maxDigitalPin; dpin++) {
 							int value = digitalRead(dpin);
 
-							sprintf(tmp_str,"Digital %i = %d<br />\n",dpin,value);
+							sprintf(tmp_str,"\t\t\"%i\": %d",dpin,value);
+
+							if (dpin >= maxDigitalPin) {
+								strcat(tmp_str,"\n");
+							} else {
+								strcat(tmp_str,",\n");
+							}
 
 							strcat(body,tmp_str);
 						}
+
+						strcat(body,"\t},\n");
 
 						//////////////////////////////////////////////////////
 						// DS18BS20
@@ -112,13 +136,23 @@ void loop() {
 
 						int found = get_ds_temp(sensor_pin, sensor_id, sensor_value);
 
+						strcat(body,"\t\"DS18B20\": {\n");
+
 						for (int i = 0; i < found; i++) {
 							char float_str[8] = "";
 							dtostrf(sensor_value[i],4,1,float_str);
 
-							sprintf(tmp_str,"DS18BS20 %s = %s<br />\n",sensor_id[i],float_str);
+							sprintf(tmp_str,"\t\t\"%s\": %s",sensor_id[i],float_str);
+
+							if (i < found - 1) {
+								strcat(tmp_str,",\n");
+							} else {
+								strcat(tmp_str,"\n");
+							}
+
 							strcat(body,tmp_str);
 						}
+						strcat(body,"\t},\n");
 
 						//////////////////////////////////////////////////////
 						// DHT11
@@ -126,6 +160,8 @@ void loop() {
 
 						int pin = 28;
 						int ok  = init_dht11(pin, &DHT11);
+
+						strcat(body,"\t\"DHT11\": {\n");
 
 						if (ok) {
 							// Get the humidity
@@ -135,14 +171,14 @@ void loop() {
 							char str_tempf[7] = ""; // char array to store the float value as a string
 							get_dht11_temp_string(DHT11, str_tempf);
 
-							sprintf(tmp_str,"DHT11 %i Humidity = %i<br />\n",pin,humidity);
-							strcat(body,tmp_str);
-							sprintf(tmp_str,"DHT11 %i Temperature = %s<br />\n",pin,str_tempf);
+							sprintf(tmp_str,"\t\t\"%i\": {\n\t\t\t\"humidity\": %i,\n\t\t\t\"temperature\": %s\n\t\t}\n",pin,humidity,str_tempf);
 						} else {
-							sprintf(tmp_str,"DHT11 %i Error<br />\n",pin);
+							sprintf(tmp_str,"\"%i\": \"error\"\n",pin);
 						}
 
 						strcat(body,tmp_str);
+
+						strcat(body,"\t},\n");
 
 						//////////////////////////////////////////////////////////
 					}
@@ -153,12 +189,12 @@ void loop() {
 
 					unsigned long int uptime_seconds = (millis() / 1000);
 
-					sprintf(tmp_str,"Uptime = %li seconds<br />\n",uptime_seconds);
+					sprintf(tmp_str,"\t\"uptime\": %li,\n",uptime_seconds);
 					strcat(body,tmp_str);
-					sprintf(tmp_str,"Hits = %li<br />\n",hits);
+					sprintf(tmp_str,"\t\"hits\": %li\n",hits);
 					strcat(body,tmp_str);
 
-					strcat(body,"</html>");
+					strcat(body,"}\n");
 
 					client.print(body);
 					break;
