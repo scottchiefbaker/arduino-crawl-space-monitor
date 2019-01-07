@@ -83,19 +83,21 @@ void loop() {
 						//////////////////////////////////////////////////////
 
 						strcat(body,"\t\"analog\": {\n");
-						int minAnalogChannel = 0;
-						int maxAnalogChannel = 8;
+
+						int usableAnalogPins[] = { 0, 1, 2, 3, 4, 5, 6, 7, 8 };
+						int numPins            = (sizeof(usableAnalogPins) / sizeof(usableAnalogPins[0]));
 
 						// output the value of each analog input pin
-						for (int analogChannel = minAnalogChannel; analogChannel <= maxAnalogChannel; analogChannel++) {
-							int sensorReading = analogRead(analogChannel);
+						for (int i = 0; i < numPins; i++) {
+							int aPin          = usableAnalogPins[i];
+							int sensorReading = analogRead(aPin);
 
-							sprintf(tmp_str,"\t\t\"%i\": %d",analogChannel,sensorReading);
+							sprintf(tmp_str,"\t\t\"%i\": %d",aPin,sensorReading);
 
-							if (analogChannel >= maxAnalogChannel) {
-								strcat(tmp_str,"\n");
-							} else {
+							if (i < numPins - 1) {
 								strcat(tmp_str,",\n");
+							} else {
+								strcat(tmp_str,"\n");
 							}
 
 							strcat(body,tmp_str);
@@ -109,18 +111,19 @@ void loop() {
 
 						strcat(body,"\t\"digital\": {\n");
 
-						int minDigitalPin = 3; // 0 and 1 are serial, and 2 is DS18B20
-						int maxDigitalPin = 14;
+						int usableDigitalPins[] = { 3,4,5,6,7,8,9,11,12,13,14,15 }; // 0 and 1 are serial, 2 is DS18B20, 10 is Ethernet
+						numPins                 = (sizeof(usableDigitalPins) / sizeof(usableDigitalPins[0]));
 
-						for (int dpin = minDigitalPin; dpin <= maxDigitalPin; dpin++) {
+						for (int i = 0; i < numPins; i++) {
+							int dpin  = usableDigitalPins[i];
 							int value = digitalRead(dpin);
 
 							sprintf(tmp_str,"\t\t\"%i\": %d",dpin,value);
 
-							if (dpin >= maxDigitalPin) {
-								strcat(tmp_str,"\n");
-							} else {
+							if (i < numPins - 1) {
 								strcat(tmp_str,",\n");
+							} else {
+								strcat(tmp_str,"\n");
 							}
 
 							strcat(body,tmp_str);
