@@ -162,10 +162,10 @@ void loop() {
 						// DHT11
 						//////////////////////////////////////////////////////
 
-						int pin = 28;
+						int dht11_pin = 28;
 
 						if (!quick) {
-							int ok  = init_dht11(pin, &DHT11);
+							int ok  = init_dht11(dht11_pin, &DHT11);
 
 							strcat(body,"\t\"DHT11\": {\n");
 
@@ -177,9 +177,9 @@ void loop() {
 								char str_tempf[7] = ""; // char array to store the float value as a string
 								get_dht11_temp_string(DHT11, str_tempf);
 
-								sprintf(tmp_str,"\t\t\"%i\": {\n\t\t\t\"humidity\": %i,\n\t\t\t\"temperature\": %s\n\t\t}\n",pin,humidity,str_tempf);
+								sprintf(tmp_str,"\t\t\"%i\": {\n\t\t\t\"humidity\": %i,\n\t\t\t\"temperature\": %s\n\t\t}\n",dht11_pin,humidity,str_tempf);
 							} else {
-								sprintf(tmp_str,"\t\t\"%i\": \"error\"\n",pin);
+								sprintf(tmp_str,"\t\t\"%i\": \"error\"\n",dht11_pin);
 							}
 
 							strcat(body,tmp_str);
