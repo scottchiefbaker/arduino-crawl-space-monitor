@@ -7,6 +7,10 @@
 byte mac[] = { 0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xED };
 IPAddress ip(10, 1, 1, 160);
 
+int usableAnalogPins[] = { 0, 1, 2, 3, 4, 5, 6, 7, 8 };
+// https://store.arduino.cc/usa/arduino-ethernet-rev3-with-poe
+int usableDigitalPins[] = { 3,4,5,6,7,8,9,14,15,16,17,18 }; // 0 and 1 are serial, 2 is DS18B20, 10 is Ethernet
+
 // Start the web server on port 80
 EthernetServer server(80);
 
@@ -84,8 +88,7 @@ void loop() {
 
 						strcat(body,"\t\"analog\": {\n");
 
-						int usableAnalogPins[] = { 0, 1, 2, 3, 4, 5, 6, 7, 8 };
-						int numPins            = (sizeof(usableAnalogPins) / sizeof(usableAnalogPins[0]));
+						int numPins = (sizeof(usableAnalogPins) / sizeof(usableAnalogPins[0]));
 
 						// output the value of each analog input pin
 						for (int i = 0; i < numPins; i++) {
@@ -109,9 +112,7 @@ void loop() {
 
 						strcat(body,"\t\"digital\": {\n");
 
-						// https://store.arduino.cc/usa/arduino-ethernet-rev3-with-poe
-						int usableDigitalPins[] = { 3,4,5,6,7,8,9,14,15,16,17,18 }; // 0 and 1 are serial, 2 is DS18B20, 10 is Ethernet
-						numPins                 = (sizeof(usableDigitalPins) / sizeof(usableDigitalPins[0]));
+						numPins = (sizeof(usableDigitalPins) / sizeof(usableDigitalPins[0]));
 
 						for (int i = 0; i < numPins; i++) {
 							int dpin  = usableDigitalPins[i];
