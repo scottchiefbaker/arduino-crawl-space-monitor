@@ -179,7 +179,7 @@ void loop() {
 
 								sprintf(eos(body),"\t\t\"%i\": {\n\t\t\t\"humidity\": %i,\n\t\t\t\"temperature\": %s\n\t\t}\n",dht11_pin,humidity,str_tempf);
 							} else {
-								sprintf(eos(body),"\t\t\"%i\": \"error\"\n",dht11_pin);
+								sprintf(eos(body),"\t\t\"%i\": {}\n",dht11_pin);
 							}
 
 							strcat(body,"\t},\n");
