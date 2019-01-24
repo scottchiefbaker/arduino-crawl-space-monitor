@@ -26,14 +26,6 @@ unsigned long hits = 1;
 
 ////////////////////////////////////////////////////////////////////////////
 
-int   get_ds_temp(byte pin, char sensor_id[][25], float* sensor_value);
-int   init_dht11(int pin, dht11 *obj);
-float get_dht11_humidty(dht11 obj);
-char  *get_dht11_temp_string(dht11 obj, char *ret);
-char  *eos(char str[]);
-
-////////////////////////////////////////////////////////////////////////////
-
 void setup() {
 	// Open serial communications and wait for port to open:
 	Serial.begin(57600);
