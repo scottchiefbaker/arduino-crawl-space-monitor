@@ -1,221 +1,125 @@
-#include <SPI.h>
 #include <Ethernet.h>
-#include <OneWire.h>
-#include <dht11.h>
+#include <DHT.h>        // AdaFruit: 'DHT sensor library'
+#include "MemoryFree.h" // https://github.com/maniacbug/MemoryFree
 
-// Setup the MAC/IP address for the ethernet shield
-byte mac[] = { 0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xED };
-IPAddress ip(10, 1, 1, 160);
+// ds18b20 requires 'DallasTemperature' lib
+#include "OneWire.h"
+#include "DallasTemperature.h"
 
-int usableAnalogPins[]  = { 0, 1, 2, 3, 4, 5, 6, 7, 8 };
-// https://store.arduino.cc/usa/arduino-ethernet-rev3-with-poe
-int usableDigitalPins[] = { 3, 4, 5, 6, 7, 8, 9, 14, 15, 16, 17, 18 }; // 0 and 1 are serial, 2 is DS18B20, 10 is Ethernet
+// Skip pins #0 and #1 cuz they're Serial RX/TX
+// Ethernet shield pins: https://arduino.stackexchange.com/questions/33019/arduino-ethernet-shield-on-arduino-mega-pin-usage
+// Pins #10, #50, #51, #52, and #53 are used for Ethernet on the Mega.
+// Pin #4 is used by the SD card
+uint8_t dpins[]        = { 2,3,4,5,6,7,8,9,14,15,16,17,18 };
+uint8_t apins[]        = { 0,1,2,3,4,5 };
+uint8_t dht11_pins[]   = { 28 };
+uint8_t ds18b20_pins[] = { 22, 23, 24, 25, 29 };
 
-// Pins for temperature/humidity sensors
-int ds18b20_pin = 2;
-int dht11_pin   = 28;
+byte mac[]  = { 0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xCC };
+IPAddress   ip(192, 168, 5, 99);
 
-// Start the web server on port 80
+uint32_t query_start = 0;
+
+///////////////////////////////////////////////////////////////////////
+
 EthernetServer server(80);
-
-// Glotal DHT11 object
-dht11 DHT11;
-
-// Number of hits the server has seen
-unsigned long hits = 1;
-
-////////////////////////////////////////////////////////////////////////////
+uint32_t hits            = 0;
+uint8_t alast_val        = apins[sizeof(apins)/sizeof(apins[0]) - 1];
+uint8_t dlast_val        = dpins[sizeof(dpins)/sizeof(dpins[0]) - 1];
+uint8_t dht11_last_val   = dht11_pins[sizeof(dht11_pins)/sizeof(dht11_pins[0]) - 1];
+uint8_t ds18b20_last_val = ds18b20_pins[sizeof(ds18b20_pins)/sizeof(ds18b20_pins[0]) - 1];
 
 void setup() {
-	// Open serial communications and wait for port to open:
-	Serial.begin(57600);
+	Serial.begin(115200);
 
-	// start the Ethernet connection and the server:
+	// Start the Ethernet connection and the server:
 	Ethernet.begin(mac, ip);
+
+	// Check for Ethernet hardware present
+	if (Ethernet.hardwareStatus() == EthernetNoHardware) {
+		Serial.println("Ethernet shield was not found.  Sorry, can't run without hardware. :(");
+		while (true) {
+			delay(1); // do nothing, no point running without Ethernet hardware
+		}
+	}
+
+	if (Ethernet.linkStatus() == LinkOFF) {
+		Serial.println("Ethernet cable is not connected.");
+	}
+
+	// Set all the digital pin to input
+	for (int pin : dpins) {
+		pinMode(pin, INPUT_PULLUP);
+	}
+
+	// start the WebServer
 	server.begin();
-	Serial.print("server is at ");
+	Serial.print("WebServer is at ");
 	Serial.println(Ethernet.localIP());
 }
 
 void loop() {
 	// listen for incoming clients
 	EthernetClient client = server.available();
+
+	char html[1024] = "";
+
 	if (client) {
-		char body[1024]  = "";
-		char line[200]   = "";
-		char uri[30]     = "";
+		// Serial.println("new client");
+		query_start = millis();
 
-		Serial.println("new client");
-		// an http request ends with a blank line
-		boolean currentLineIsBlank = true;
-		while (client.connected()) {
-			if (client.available()) {
-				char c = client.read();
+		// We pre-reserve 256 bytes to avoid fragmentation
+		String header = "";
+		header.reserve(256);
 
-				// Append this char to the existing line
-				int line_end = strlen(line);
-				line[line_end] = c;
-				line[line_end + 1] = '\0';
+		// An http request ends with a blank line
+		bool currentLineIsBlank = true;
+		while (client.connected() && client.available()) {
+			char c = client.read();
 
-				//Serial.write(c);
-				// if you've gotten to the end of the line (received a newline
-				// character) and the line is blank, the http request has ended,
-				// so you can send a reply
-				if (c == '\n' && currentLineIsBlank) {
-					strcat(body,"HTTP/1.1 200 OK\n");
-					strcat(body,"Content-Type: application/json\n");
-					strcat(body,"Connection: close\nRefresh: 5\n");
-					strcat(body,"\n");
-					strcat(body,"{\n");
+			// Read char by char HTTP request
+			if (header.length() < 256) {
+				// Store characters to string
+				header += c;
+			}
 
-					Serial.print("Serving: ");
-					Serial.println(uri);
+			// if you've gotten to the end of the line (received a newline
+			// character) and the line is blank, the http request has ended,
+			// so you can send a reply
+			if (c == '\n' && currentLineIsBlank) {
+				//Serial.print(header.c_str());
 
-					char *quick = strstr(uri,"quick");
+				hits++;
 
-					/////////////////////////////////////////////////////
+				///////////////////////////////////////////////
+				// We've got enough info we can start sending
+				// a response now.
+				///////////////////////////////////////////////
+				build_response(html, header);
 
-					if (strcmp(uri,"/foo.html") == 0) {
-						strcat(body,"foo.html!!!");
-					} else {
-						//////////////////////////////////////////////////////
-						// Analog
-						//////////////////////////////////////////////////////
+				String remote_ip     = ip_2_string(client.remoteIP());
+				int16_t content_size = strlen(html);
+				String url           = extract_url(header);
 
-						strcat(body,"\t\"analog\": {\n");
+				char buf[64] = "";
+				snprintf(buf, 64, "Sent %i bytes to %s for %s\r\n", content_size, remote_ip.c_str(), url.c_str());
+				Serial.print(buf);
 
-						int numPins = (sizeof(usableAnalogPins) / sizeof(usableAnalogPins[0]));
+				// send the HTML to the client
+				client.print(html);
 
-						// output the value of each analog input pin
-						for (int i = 0; i < numPins; i++) {
-							int aPin          = usableAnalogPins[i];
-							int sensorReading = analogRead(aPin);
+				//////////////////////////////////////////////////////////////
+				//////////////////////////////////////////////////////////////
 
-							sprintf(eos(body),"\t\t\"%i\": %d",aPin,sensorReading);
+				break;
+			}
 
-							if (i < numPins - 1) {
-								strcat(body,",\n");
-							} else {
-								strcat(body,"\n");
-							}
-						}
-
-						strcat(body,"\t},\n");
-
-						//////////////////////////////////////////////////////
-						// Digital
-						//////////////////////////////////////////////////////
-
-						strcat(body,"\t\"digital\": {\n");
-
-						numPins = (sizeof(usableDigitalPins) / sizeof(usableDigitalPins[0]));
-
-						for (int i = 0; i < numPins; i++) {
-							int dpin  = usableDigitalPins[i];
-							int value = digitalRead(dpin);
-
-							sprintf(eos(body),"\t\t\"%i\": %d",dpin,value);
-
-							if (i < numPins - 1) {
-								strcat(body,",\n");
-							} else {
-								strcat(body,"\n");
-							}
-						}
-
-						strcat(body,"\t},\n");
-
-						//////////////////////////////////////////////////////
-						// DS18BS20
-						//////////////////////////////////////////////////////
-						int    count = 8;
-						char   sensor_id[count][25];
-						float  sensor_value[count];
-
-						if (!quick) {
-							int found = get_ds_temp(ds18b20_pin, sensor_id, sensor_value);
-
-							strcat(body,"\t\"DS18B20\": {\n");
-
-							for (int i = 0; i < found; i++) {
-								char float_str[8] = "";
-								dtostrf(sensor_value[i],4,1,float_str);
-
-								sprintf(eos(body),"\t\t\"%s\": %s",sensor_id[i],float_str);
-
-								if (i < found - 1) {
-									strcat(body,",\n");
-								} else {
-									strcat(body,"\n");
-								}
-							}
-
-							strcat(body,"\t},\n");
-						}
-
-						//////////////////////////////////////////////////////
-						// DHT11
-						//////////////////////////////////////////////////////
-
-						if (!quick) {
-							int ok  = init_dht11(dht11_pin, &DHT11);
-
-							strcat(body,"\t\"DHT11\": {\n");
-
-							if (ok) {
-								// Get the humidity
-								int humidity = get_dht11_humidty(DHT11);
-
-								// Get the temperature as a string
-								char str_tempf[7] = ""; // char array to store the float value as a string
-								get_dht11_temp_string(DHT11, str_tempf);
-
-								sprintf(eos(body),"\t\t\"%i\": {\n\t\t\t\"humidity\": %i,\n\t\t\t\"temperature\": %s\n\t\t}\n",dht11_pin,humidity,str_tempf);
-							} else {
-								sprintf(eos(body),"\t\t\"%i\": {}\n",dht11_pin);
-							}
-
-							strcat(body,"\t},\n");
-						}
-
-						//////////////////////////////////////////////////////////
-					}
-
-					/////////////////////////////////////////////////////
-
-					hits++;
-
-					unsigned long int uptime_seconds = (millis() / 1000);
-
-					sprintf(eos(body),"\t\"uptime\": %li,\n",uptime_seconds);
-					sprintf(eos(body),"\t\"hits\": %li\n",hits);
-
-					strcat(body,"}\n");
-
-					client.print(body);
-					break;
-				}
-
-				if (c == '\n') {
-					// you're starting a new line
-					currentLineIsBlank = true;
-
-					// Check if the line is the GET line, if it is store the URI
-					if ((strncmp("GET ",line, 4)) == 0) {
-						char* tmp_str;
-
-						tmp_str = strtok(line," "); // find the first space
-						tmp_str = strtok(NULL," "); // find the second space
-
-						strcpy(uri,tmp_str);
-					}
-
-					//line[0] = '\0';
-					strcpy(line,"");
-				} else if (c != '\r') {
-					// you've gotten a character on the current line
-					currentLineIsBlank = false;
-				}
+			if (c == '\n') {
+				// you're starting a new line
+				currentLineIsBlank = true;
+			} else if (c != '\r') {
+				// you've gotten a character on the current line
+				currentLineIsBlank = false;
 			}
 		}
 
@@ -223,54 +127,213 @@ void loop() {
 		delay(1);
 		// close the connection:
 		client.stop();
-		Serial.println("client disconnected");
+		//Serial.println("client disconnected");
 	}
 }
 
-///////////////////////////////////////////////////////////////////////////////////////
+char *process_analog(char str[]) {
+	sprintf(eos(str),"\"analog\": {");
 
-int addr_to_str(byte addr[8], char* addr_str) {
-	// Sensors have an 8 byte address, we can save memory if we only use the first 4
-	int id_len = 4; // Either 4 or 8
+	for (int pin : apins) {
+		int pval = analogRead(pin);
 
-	// Should addresses include the ":" separator
-	byte include_colon = 1;
+		sprintf(eos(str), "\"%d\":%d", pin, pval);
 
-	// Init the return string
-	strcpy(addr_str,"");
+		if (pin != alast_val) {
+			sprintf(eos(str), ",");
+		}
+	}
 
-	for (int i = 0; i < id_len; i++) {
-		char tmp_segment[5] = "";
-		sprintf(tmp_segment,"%02x", addr[i]);
+	sprintf(eos(str), "},\n"); // Close analog
 
-		/*
-		char t[40] = "";
-		sprintf(t,"byte #%i is %i = %s\n",i,addr[i],tmp_segment);
-		Serial.print(t);
-		*/
+	return str;
+}
 
-		// If we're including colons, and it's NOT the last octet
-		if ((include_colon) && i < (id_len - 1)) {
-			strcat(tmp_segment,":");
+char *process_digital(char str[]) {
+	sprintf(eos(str), "\"digital\": {");
+	for (int pin : dpins) {
+		pinMode(pin, INPUT);
+		int pval = digitalRead(pin);
+
+		sprintf(eos(str), "\"%d\":%d", pin, pval);
+
+		if (pin != dlast_val) {
+			sprintf(eos(str), ",");
+		}
+	}
+
+	sprintf(eos(str), "},\n"); // Close digital
+
+	return str;
+}
+
+char *process_ds18b20(char str[]) {
+	//sprintf(eos(str), "\"ds18b20\": { \"Not implemented yet\": true },\n");
+	//return str;
+
+	sprintf(eos(str), "\"ds18b20\": {");
+
+	for (int pin : ds18b20_pins) {
+		int   count = 8;           // Number of sensors to look for
+		char  sensor_id[count][25]; // HEX string of the sensor ID
+		float sensor_value[count]; // Temperatur in F
+
+		int found = get_ds_temp(pin, sensor_id, sensor_value);
+
+		char buf[6] = "";
+		dtostrf(sensor_value[0], 4,1, buf);
+
+		if (found > 0) {
+			//sprintf(eos(str), "\"%d\": {\"id\": \"%s\", \"tempF\": %s, \"found\": %i}", pin, sensor_id[0], buf, found);
+			sprintf(eos(str), "\"%d\": {\"id\": \"%s\", \"tempF\": %s}", pin, sensor_id[0], buf);
+		} else {
+			sprintf(eos(str), "\"%d\": {}", pin);
 		}
 
-		// Append this segment to the return string
-		strcat(addr_str,tmp_segment);
+		if (pin != ds18b20_last_val) {
+			sprintf(eos(str), ",");
+		}
 	}
 
-	return id_len;
+	sprintf(eos(str), "},\n"); // Close section
+
+	return str;
 }
 
-float c_to_f(float tempC) {
-	float tempF = (tempC * 9 / 5) + 32;
 
-	return tempF;
+char *process_extra(char str[], String header) {
+	if (is_simple_request(header)) {
+		sprintf(eos(str), "\"simple\": true,\n");
+	} else {
+		sprintf(eos(str), "\"simple\": false,\n");
+	}
+
+	String url = extract_url(header);
+
+	int16_t query_time_ms = millis() - query_start;
+
+	sprintf(eos(str), "\"hits\": %lu,\n", hits);
+	sprintf(eos(str), "\"uptime\": %lu,\n", millis() / 1000);
+	sprintf(eos(str), "\"qps\": %d,\n", hits / (millis() / 1000));
+	sprintf(eos(str), "\"query_ms\": %d,\n", query_time_ms);
+	sprintf(eos(str), "\"free_memory\": %d,\n", freeMemory());
+	sprintf(eos(str), "\"url\": \"%s\"\n", url.c_str());
+
+	return str;
 }
 
-// Return a point to the end of the string (good for appending with sprintf)
-// https://stackoverflow.com/questions/2674312/how-to-append-strings-using-sprintf
+char *process_dht11(char str[]) {
+	static long last_hit = 0;
+	bool too_soon        = (millis() - last_hit < 2000);
+
+	sprintf(eos(str), "\"dht22\": {");
+
+	for (int pin : dht11_pins) {
+		// Too soon, must wait about two seconds between hits
+		if (too_soon) {
+			sprintf(eos(str), "\"%d\": [\"too soon\"]", pin);
+
+			if (pin != dht11_last_val) {
+				sprintf(eos(str), ",");
+			}
+
+			continue;
+		}
+
+		DHT dht(pin, DHT22);
+		dht.begin();
+
+		float humid = dht.readHumidity();
+		float tempF = dht.readTemperature(true);
+
+		char temp_buf[6] = "";
+		dtostrf(tempF, 4,1, temp_buf);
+		char humid_buf[6] = "";
+		dtostrf(humid, 4,1, humid_buf);
+
+		// Make sure we get actual data back from the sensor
+		if (isnan(humid) || isnan(tempF)) {
+			sprintf(eos(str), "\"%d\": {\"temp\": -1, \"humid\": -1}", pin);
+		} else {
+			sprintf(eos(str), "\"%d\": {\"temp\": %s, \"humid\": %s}", pin, temp_buf, humid_buf);
+		}
+
+		if (pin != dht11_last_val) {
+			sprintf(eos(str), ",");
+		}
+	}
+
+	sprintf(eos(str), "},\n"); // Close section
+
+	// Store when the last hit was
+	if (!too_soon) {
+		last_hit = millis();
+	}
+
+	return str;
+}
+
 char *eos(char str[]) {
 	return (str) + strlen(str);
+}
+
+String extract_url(String headers) {
+	int16_t url_start = headers.indexOf("GET ");
+	int16_t url_end   = headers.indexOf(" ", url_start + 5);
+
+	String url = "";
+	if (url_start >= 0) {
+		url_start += 3;
+		url = headers.substring(url_start + 1, url_end);
+	}
+
+	return url;
+}
+
+bool is_simple_request(String header) {
+	bool simple = false;
+
+	// If the request contains "?simple"
+	if (header.indexOf("?simple") > 0) {
+		simple = true;
+	}
+
+	return simple;
+}
+
+void build_response(char* html, String header) {
+	bool simple = is_simple_request(header);
+
+	////////////////////////////////////////////////
+
+	//Serial.print("Sending respond packet");
+
+	// HTTP Header
+	sprintf(eos(html), "HTTP/1.1 200 OK\r\n");
+	sprintf(eos(html), "Content-Type: application/json\r\n");
+	sprintf(eos(html), "Connection: close\r\n");
+	sprintf(eos(html), "\r\n");
+
+	// Start the JSON block
+	sprintf(eos(html), "{\n");
+
+	//////////////////////////////////////////////
+
+	process_analog(html);
+	process_digital(html);
+
+	//////////////////////////////////////////////
+
+	if (!simple) {
+		process_dht11(html);
+		process_ds18b20(html);
+	}
+
+	// Footer information
+	process_extra(html, header);
+
+	// Close the whole JSON
+	sprintf(eos(html), "}\n");
 }
 
 int get_ds_temp(byte pin, char sensor_id[][25], float* sensor_value) {
@@ -310,7 +373,7 @@ int get_ds_temp(byte pin, char sensor_id[][25], float* sensor_value) {
 		byte LSB = data[0];
 
 		float tempRead = ((MSB << 8) | LSB); //using two's compliment
-		float TemperatureSum = tempRead / 16;
+		float tempF    = ((tempRead / 16) * 1.8f) + 32;
 
 		char addr_str[25] = "";
 		addr_to_str(addr, addr_str);
@@ -321,9 +384,8 @@ int get_ds_temp(byte pin, char sensor_id[][25], float* sensor_value) {
 		Serial.print(t);
 		*/
 
-		//sensor_id[found - 1] = addr_str;
 		strcpy(sensor_id[found - 1], addr_str);
-		sensor_value[found - 1] = c_to_f(TemperatureSum);
+		sensor_value[found - 1] = tempF;
 	}
 
 	ds.reset_search();
@@ -331,43 +393,90 @@ int get_ds_temp(byte pin, char sensor_id[][25], float* sensor_value) {
 	return found;
 }
 
-////////////////////////////////////////////////////////////////////
-// DHT11 stuff
-////////////////////////////////////////////////////////////////////
+String ip_2_string(const IPAddress& ipAddress) {
+  String ret = String(ipAddress[0]) + String(".") +\
+  String(ipAddress[1]) + String(".") +\
+  String(ipAddress[2]) + String(".") +\
+  String(ipAddress[3])  ;
 
-float get_dht11_humidty(dht11 obj) {
-	return (int)obj.humidity;
+  return ret;
 }
 
-float get_dht11_temp(dht11 obj) {
-	return c_to_f(obj.temperature);
-}
+int addr_to_str(byte addr[8], char* addr_str) {
+	// Sensors have an 8 byte address, we can save memory if we only use the first 4
+	int id_len = 4; // Either 4 or 8
 
-char *get_dht11_temp_string(dht11 obj, char *ret) {
-	float temperature = c_to_f(obj.temperature);
+	// Should addresses include the ":" separator
+	byte include_colon = 0;
 
-	// Init ret to be 100% sure
-	strcpy(ret,"");
+	// Init the return string
+	strcpy(addr_str,"");
 
-	// Convert the float to a left aligned string
-	dtostrf(temperature, -6, 2, ret);
+	for (int i = 0; i < id_len; i++) {
+		char tmp_segment[5] = "";
+		sprintf(tmp_segment,"%02x", addr[i]);
 
-	// Remove any trailing whitespace
-	for (byte i = 0; i < strlen(ret); i++) {
-		if (ret[i] == ' ') {
-			ret[i] = 0;
+		/*
+		char t[40] = "";
+		sprintf(t,"byte #%i is %i = %s\n",i,addr[i],tmp_segment);
+		Serial.print(t);
+		*/
+
+		// If we're including colons, and it's NOT the last octet
+		if ((include_colon) && i < (id_len - 1)) {
+			strcat(tmp_segment,":");
 		}
+
+		// Append this segment to the return string
+		strcat(addr_str,tmp_segment);
 	}
 
-	return ret;
+	return id_len;
 }
 
-int init_dht11(int pin, dht11 *obj) {
-	int check = obj->read(pin); // Has to run before you get temp
+/*
 
-	if (check == 0) {
-		return 1;
-	} else {
-		return 0;
-	}
-}
+OLD version
+
+<html><head><title>Arduino</title></head><body>
+<h1>Arduino Ethernet Shield</h1>
+
+<div>Digital #0: 1</div>
+<div>Digital #1: 1</div>
+<div>Digital #2: 1</div>
+<div>Digital #3: 1</div>
+<div>Digital #4: 0</div>
+<div>Digital #5: 0</div>
+<div>Digital #6: 1</div>
+<div>Digital #7: 1</div>
+<div>Digital #8: 1</div>
+<div>Digital #9: 1</div>
+<div>Digital #14: 0</div>
+<div>Digital #15: 0</div>
+<div>Digital #16: 0</div>
+<div>Digital #17: 0</div>
+<div>Digital #18: 0</div>
+<div>Analog #0: 256</div>
+<div>Analog #1: 991</div>
+<div>Analog #2: 544</div>
+<div>Analog #3: 675</div>
+<div>Analog #4: 583</div>
+<div>Analog #5: 522</div>
+<div>Analog #6: 520</div>
+<div>Analog #7: 455</div>
+<div>Analog #8: 416</div>
+<div>Analog #9: 412</div>
+<div>Analog #10: 431</div>
+<div>Analog #11: 392</div>
+<div>Analog #12: 378</div>
+<div>Analog #13: 364</div>
+<div>Analog #14: 360</div>
+<div>Analog #15: 392</div>
+<div>DHT11 #28:  57.20/72</div>
+<div>DS18D20 #245:  57.65</div>
+<div>DS18D20 #196:  88.59</div>
+<div>DS18D20 #102: 185.00</div>
+<div>Hits: 6461772</div>
+<div>Uptime: 2545030 seconds</div>
+<div>FreeMemory: 6925 bytes</div>
+*/
