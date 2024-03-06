@@ -391,39 +391,7 @@ int get_ds_temp(byte pin, char sensor_id[][17], float* sensor_value) {
 String ip_2_string(const IPAddress& ipAddress) {
 	String ret = String(ipAddress[0]) + String(".") + String(ipAddress[1]) + String(".") + String(ipAddress[2]) + String(".") + String(ipAddress[3]);
 
-  return ret;
-}
-
-int addr_to_str(byte addr[8], char* addr_str) {
-	// Sensors have an 8 byte address, we can save memory if we only use the first 4
-	int id_len = 4; // Either 4 or 8
-
-	// Should addresses include the ":" separator
-	byte include_colon = 0;
-
-	// Init the return string
-	strcpy(addr_str,"");
-
-	for (int i = 0; i < id_len; i++) {
-		char tmp_segment[5] = "";
-		sprintf(tmp_segment,"%02x", addr[i]);
-
-		/*
-		char t[40] = "";
-		sprintf(t,"byte #%i is %i = %s\n",i,addr[i],tmp_segment);
-		Serial.print(t);
-		*/
-
-		// If we're including colons, and it's NOT the last octet
-		if ((include_colon) && i < (id_len - 1)) {
-			strcat(tmp_segment,":");
-		}
-
-		// Append this segment to the return string
-		strcat(addr_str,tmp_segment);
-	}
-
-	return id_len;
+	return ret;
 }
 
 /*
