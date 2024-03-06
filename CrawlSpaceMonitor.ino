@@ -389,10 +389,7 @@ int get_ds_temp(byte pin, char sensor_id[][17], float* sensor_value) {
 }
 
 String ip_2_string(const IPAddress& ipAddress) {
-  String ret = String(ipAddress[0]) + String(".") +\
-  String(ipAddress[1]) + String(".") +\
-  String(ipAddress[2]) + String(".") +\
-  String(ipAddress[3])  ;
+	String ret = String(ipAddress[0]) + String(".") + String(ipAddress[1]) + String(".") + String(ipAddress[2]) + String(".") + String(ipAddress[3]);
 
   return ret;
 }
