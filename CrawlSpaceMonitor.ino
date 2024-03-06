@@ -14,15 +14,15 @@ uint8_t dpins[]        = { 2,3,4,5,6,7,8,9,14,15,16,17,18 };
 uint8_t apins[]        = { 0,1,2,3,4,5 };
 uint8_t dht11_pins[]   = { 28 };
 uint8_t ds18b20_pins[] = { 22, 23, 24, 25, 29 };
+uint32_t query_start   = 0;
 
-byte mac[]  = { 0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xCC };
-IPAddress   ip(192, 168, 5, 99);
+byte mac[] = { 0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xCC };
+IPAddress  ip(192, 168, 5, 99);
 
-uint32_t query_start = 0;
+EthernetServer server(80);
 
 ///////////////////////////////////////////////////////////////////////
 
-EthernetServer server(80);
 uint32_t hits            = 0;
 uint8_t alast_val        = apins[sizeof(apins)/sizeof(apins[0]) - 1];
 uint8_t dlast_val        = dpins[sizeof(dpins)/sizeof(dpins[0]) - 1];
