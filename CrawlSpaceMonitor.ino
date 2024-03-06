@@ -168,26 +168,27 @@ char *process_digital(char str[]) {
 }
 
 char *process_ds18b20(char str[]) {
-	//sprintf(eos(str), "\"ds18b20\": { \"Not implemented yet\": true },\n");
-	//return str;
-
+	// Start the section
 	sprintf(eos(str), "\"ds18b20\": {");
 
+	// Loop over the ds18b210 pins
 	for (int pin : ds18b20_pins) {
-		int   count = 8;           // Number of sensors to look for
-		char  sensor_id[count][25]; // HEX string of the sensor ID
-		float sensor_value[count]; // Temperatur in F
+		int   count = 4;            // Number of sensors to look for
+		char  sensor_id[count][17]; // HEX string of the sensor ID
+		float sensor_value[count];  // Temperatur in F
 
 		int found = get_ds_temp(pin, sensor_id, sensor_value);
 
-		char buf[6] = "";
-		dtostrf(sensor_value[0], 4,1, buf);
-
-		if (found > 0) {
-			//sprintf(eos(str), "\"%d\": {\"id\": \"%s\", \"tempF\": %s, \"found\": %i}", pin, sensor_id[0], buf, found);
-			sprintf(eos(str), "\"%d\": {\"id\": \"%s\", \"tempF\": %s}", pin, sensor_id[0], buf);
-		} else {
+		// Loop over the number of sensors we found
+		if (found == 0) {
 			sprintf(eos(str), "\"%d\": {}", pin);
+		} else {
+			for (int i = 0; i < found; i++) {
+				char float_buf[6] = "";
+				dtostrf(sensor_value[i], 4,1, float_buf);
+
+				sprintf(eos(str), "\"%d\": {\"id\": \"%s\", \"tempF\": %s}", pin, sensor_id[i], float_buf);
+			}
 		}
 
 		if (pin != ds18b20_last_val) {
@@ -336,16 +337,15 @@ void build_response(char* html, String header) {
 	sprintf(eos(html), "}\n");
 }
 
-int get_ds_temp(byte pin, char sensor_id[][25], float* sensor_value) {
+int get_ds_temp(byte pin, char sensor_id[][17], float* sensor_value) {
 	OneWire ds(pin);
 
-	byte data[12];
+	byte data[9];
 	byte addr[8];
-	byte found = 0;
+	uint8_t num_found = 0;
 
 	while (ds.search(addr)) {
-
-		if (OneWire::crc8( addr, 7) != addr[7]) {
+		if (OneWire::crc8(addr, 7) != addr[7]) {
 			Serial.println("CRC is not valid!");
 			return -1000;
 		}
@@ -355,42 +355,37 @@ int get_ds_temp(byte pin, char sensor_id[][25], float* sensor_value) {
 			return -1001;
 		}
 
-		found++;
-
 		ds.reset();
 		ds.select(addr);
-		ds.write(0x44,1); // start conversion, with parasite power on at the end
+		ds.write(0x44,1); // Start conversion, with parasite power on at the end
 
 		ds.reset();
 		ds.select(addr);
 		ds.write(0xBE); // Read Scratchpad
 
-		for (byte i = 0; i < 9; i++) { // we need 9 bytes
+		for (byte i = 0; i < 9; i++) { // Read 9 bytes
 			data[i] = ds.read();
 		}
 
-		byte MSB = data[1];
-		byte LSB = data[0];
+		float tempRead = ((data[1] << 8) | data[0]);    // Using two's compliment
+		float tempF    = ((tempRead / 16) * 1.8f) + 32; // Convert C to F
 
-		float tempRead = ((MSB << 8) | LSB); //using two's compliment
-		float tempF    = ((tempRead / 16) * 1.8f) + 32;
+		char addr_str[17] = "";
+		// Four byte hex address
+		snprintf(addr_str, sizeof(addr_str), "%02x%02x%02x%02x", addr[0],addr[1],addr[2],addr[3]);
 
-		char addr_str[25] = "";
-		addr_to_str(addr, addr_str);
+		// Full eight byte hex address
+		//snprintf(addr_str,sizeof(addr_str),"%02x%02x%02x%02x%02x%02x%02x%02x",addr[0],addr[1],addr[2],addr[3],addr[4],addr[5],addr[6],addr[7]);
 
-		/*
-		char t[50] = "";
-		sprintf(t,"Sensor #%i = %s\n",found,addr_str);
-		Serial.print(t);
-		*/
+		strcpy(sensor_id[num_found], addr_str);
+		sensor_value[num_found] = tempF;
 
-		strcpy(sensor_id[found - 1], addr_str);
-		sensor_value[found - 1] = tempF;
+		num_found++;
 	}
 
 	ds.reset_search();
 
-	return found;
+	return num_found;
 }
 
 String ip_2_string(const IPAddress& ipAddress) {
