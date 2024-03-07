@@ -225,22 +225,20 @@ char *process_extra(char str[], String header) {
 
 char *process_dht11(char str[]) {
 	static unsigned long last_hit = 0;
-	bool too_soon                 = abs(millis() - last_hit) < 2000;
+	static char buf[128]          = "";
+	bool too_soon                 = abs(millis() - last_hit) < 5000;
 
-	sprintf(eos(str), "\"dht22\": {");
+	// Used the last cached line instead
+	if (too_soon) {
+		strncpy(eos(str), buf, strlen(buf));
+		//sprintf(eos(str), "\"dht_cached\": true,\n");
+		return str;
+	}
+
+	// Start building a new string
+	sprintf(buf, "\"dht22\": {");
 
 	for (int pin : dht11_pins) {
-		// Too soon, must wait about two seconds between hits
-		if (too_soon) {
-			sprintf(eos(str), "\"%d\": [\"too soon\"]", pin);
-
-			if (pin != dht11_last_val) {
-				sprintf(eos(str), ",");
-			}
-
-			continue;
-		}
-
 		DHT dht(pin, DHT22);
 		dht.begin();
 
@@ -254,17 +252,20 @@ char *process_dht11(char str[]) {
 
 		// Make sure we get actual data back from the sensor
 		if (isnan(humid) || isnan(tempF)) {
-			sprintf(eos(str), "\"%d\": {\"temp\": -1, \"humid\": -1}", pin);
+			sprintf(eos(buf), "\"%d\": {\"temp\": -1, \"humid\": -1}", pin);
 		} else {
-			sprintf(eos(str), "\"%d\": {\"temp\": %s, \"humid\": %s}", pin, temp_buf, humid_buf);
+			sprintf(eos(buf), "\"%d\": {\"temp\": %s, \"humid\": %s}", pin, temp_buf, humid_buf);
 		}
 
 		if (pin != dht11_last_val) {
-			sprintf(eos(str), ",");
+			sprintf(eos(buf), ",");
 		}
 	}
 
-	sprintf(eos(str), "},\n"); // Close section
+	sprintf(eos(buf), "},\n"); // Close section
+
+	// Copy our temp buffer to the string input
+	strncpy(eos(str), buf, strlen(buf));
 
 	// Store when the last hit was
 	if (!too_soon) {
