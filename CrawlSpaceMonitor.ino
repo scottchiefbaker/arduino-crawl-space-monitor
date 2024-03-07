@@ -224,8 +224,8 @@ char *process_extra(char str[], String header) {
 }
 
 char *process_dht11(char str[]) {
-	static long last_hit = 0;
-	bool too_soon        = (millis() - last_hit < 2000);
+	static unsigned long last_hit = 0;
+	bool too_soon                 = abs(millis() - last_hit) < 2000;
 
 	sprintf(eos(str), "\"dht22\": {");
 
