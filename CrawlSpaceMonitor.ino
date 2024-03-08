@@ -168,8 +168,18 @@ char *process_digital(char str[]) {
 }
 
 char *process_ds18b20(char str[]) {
+	static unsigned long last_hit = 0;
+	static char buf[256]          = "";
+	bool too_soon                 = abs(millis() - last_hit) < 2000;
+
+	// Use the last cached line instead
+	if (too_soon) {
+		strncpy(eos(str), buf, strlen(buf));
+		return str;
+	}
+
 	// Start the section
-	sprintf(eos(str), "\"ds18b20\": {");
+	sprintf(buf, "\"ds18b20\": {");
 
 	// Loop over the ds18b210 pins
 	for (int pin : ds18b20_pins) {
@@ -181,22 +191,30 @@ char *process_ds18b20(char str[]) {
 
 		// Loop over the number of sensors we found
 		if (found == 0) {
-			sprintf(eos(str), "\"%d\": {}", pin);
+			sprintf(eos(buf), "\"%d\": {}", pin);
 		} else {
 			for (int i = 0; i < found; i++) {
 				char float_buf[6] = "";
 				dtostrf(sensor_value[i], 4,1, float_buf);
 
-				sprintf(eos(str), "\"%d\": {\"id\": \"%s\", \"tempF\": %s}", pin, sensor_id[i], float_buf);
+				sprintf(eos(buf), "\"%d\": {\"id\": \"%s\", \"tempF\": %s}", pin, sensor_id[i], float_buf);
 			}
 		}
 
 		if (pin != ds18b20_last_val) {
-			sprintf(eos(str), ",");
+			sprintf(eos(buf), ",");
 		}
 	}
 
-	sprintf(eos(str), "},\n"); // Close section
+	sprintf(eos(buf), "},\n"); // Close section
+
+	// Copy our temp buffer to the string input
+	strncpy(eos(str), buf, strlen(buf));
+
+	// Store when the last hit was
+	if (!too_soon) {
+		last_hit = millis();
+	}
 
 	return str;
 }
