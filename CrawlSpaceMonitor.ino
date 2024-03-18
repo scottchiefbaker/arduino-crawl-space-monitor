@@ -273,8 +273,7 @@ String extract_url(String headers) {
 
 	String url = "";
 	if (url_start >= 0) {
-		url_start += 3;
-		url = headers.substring(url_start + 1, url_end);
+		url = headers.substring(url_start + 4, url_end);
 	}
 
 	return url;
