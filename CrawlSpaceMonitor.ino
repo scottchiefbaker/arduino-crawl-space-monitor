@@ -210,13 +210,10 @@ JsonDocument process_extra(JsonDocument doc, String header) {
 
 	doc["hits"]        = hits;
 	doc["uptime"]      = millis() / 1000;
-	//doc["qps"]         = hits / (millis() / 1000);
+	doc["qps"]         = hits / (millis() / 1000.0);
 	doc["query_ms"]    = query_time_ms;
 	doc["free_memory"] = freeMemory();
-
-	// FIXME
-	//doc["url"]         = url.c_str();
-	doc["url"]         = "FIXME";
+	doc["url"]         = url;
 
 	return doc;
 }
