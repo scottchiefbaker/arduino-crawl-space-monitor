@@ -198,7 +198,7 @@ JsonDocument process_ds18b20() {
 }
 
 
-void *process_extra(JsonDocument doc, String header) {
+JsonDocument process_extra(JsonDocument doc, String header) {
 	if (is_simple_request(header)) {
 		doc["simple"] = true;
 	} else {
@@ -210,10 +210,15 @@ void *process_extra(JsonDocument doc, String header) {
 
 	doc["hits"]        = hits;
 	doc["uptime"]      = millis() / 1000;
-	doc["qps"]         = hits / (millis() / 1000);
+	//doc["qps"]         = hits / (millis() / 1000);
 	doc["query_ms"]    = query_time_ms;
 	doc["free_memory"] = freeMemory();
-	doc["url"]         = url.c_str();
+
+	// FIXME
+	//doc["url"]         = url.c_str();
+	doc["url"]         = "FIXME";
+
+	return doc;
 }
 
 JsonDocument process_dht11() {
@@ -312,10 +317,14 @@ String build_response(String header) {
 	}
 
 	// Footer information
-	process_extra(doc, header);
+	doc = process_extra(doc, header);
 
 	String json_str = "";
 	serializeJson(doc, json_str);
+
+	String ret = resp_headers + json_str;
+
+	return ret;
 }
 
 int get_ds_temp(byte pin, char sensor_id[][17], float* sensor_value) {
