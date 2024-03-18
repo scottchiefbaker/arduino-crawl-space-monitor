@@ -94,6 +94,7 @@ void loop() {
 				String resp = build_response(header);
 
 				/*
+				*/
 				String remote_ip     = ip_2_string(client.remoteIP());
 				int16_t content_size = resp.length();
 				String url           = extract_url(header);
@@ -101,7 +102,6 @@ void loop() {
 				char buf[64] = "";
 				snprintf(buf, 64, "Sent %i bytes to %s for %s\r\n", content_size, remote_ip.c_str(), url.c_str());
 				Serial.print(buf);
-				*/
 
 				// send the response HTTP data to the client
 				client.print(resp);
