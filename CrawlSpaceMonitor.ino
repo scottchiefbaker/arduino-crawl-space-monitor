@@ -314,10 +314,10 @@ String build_response(String header) {
 	if (!simple) {
 		doc["dht22"]   = process_dht11();
 		doc["ds18b20"] = process_ds18b20();
-	}
 
-	// Footer information
-	doc = process_extra(doc, header);
+		// Various stats
+		doc = process_extra(doc, header);
+	}
 
 	String json_str = "";
 	serializeJson(doc, json_str);
