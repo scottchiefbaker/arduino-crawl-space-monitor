@@ -168,6 +168,11 @@ JsonDocument process_ds18b20() {
 
 	// Loop over the ds18b210 pins
 	for (int pin : ds18b20_pins) {
+		// Don't bother processing
+		if (too_soon) {
+			break;
+		}
+
 		int   count = 8;            // Number of sensors to look for
 		char  sensor_id[count][17]; // HEX string of the sensor ID
 		float sensor_value[count];  // Temperatur in F
@@ -222,7 +227,19 @@ JsonDocument process_dht11() {
 	static unsigned long last_hit = 0;
 	const bool too_soon           = abs(millis() - last_hit) < 5000;
 
+	if (last_hit && too_soon) {
+		// We don't clear the object and instead use the previous value
+		doc["cached"] = true;
+	} else {
+		doc.clear();
+	}
+
 	for (int pin : dht11_pins) {
+		// Don't bother processing
+		if (too_soon) {
+			break;
+		}
+
 		DHT dht(pin, DHT22);
 		dht.begin();
 
@@ -231,17 +248,9 @@ JsonDocument process_dht11() {
 
 		// Invalid data back from sensor
 		if (isnan(humid) || isnan(tempF)) {
-			doc.clear();
-
 			doc[(String)pin]["temp"]  = -1;
 			doc[(String)pin]["humid"] = -1;
-		// Request too soon
-		} else if (last_hit && too_soon) {
-			// We don't clear the object and instead use the previous value
-			doc["cached"] = true;
 		} else {
-			doc.clear();
-
 			doc[(String)pin]["temp"]  = tempF;
 			doc[(String)pin]["humid"] = humid;
 		}
