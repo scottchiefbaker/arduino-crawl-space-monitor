@@ -159,6 +159,13 @@ JsonDocument process_ds18b20() {
 	static unsigned long last_hit = 0;
 	const bool too_soon           = abs(millis() - last_hit) < 2000;
 
+	if (last_hit && too_soon) {
+		// We don't clear the object and instead use the previous value
+		doc["cached"] = true;
+	} else {
+		doc.clear();
+	}
+
 	// Loop over the ds18b210 pins
 	for (int pin : ds18b20_pins) {
 		int   count = 8;            // Number of sensors to look for
@@ -169,22 +176,11 @@ JsonDocument process_ds18b20() {
 
 		// Loop over the number of sensors we found
 		if (found == 0) {
-			doc.clear();
-
 			doc[(String)pin]["id"] = "";
 		} else {
 			for (int i = 0; i < found; i++) {
-				// Check for too soon
-				if (last_hit && too_soon) {
-					// We don't clear the object and instead use the previous value
-					doc["cached"] = true;
-				// Valid data so we clear the previous object and build new
-				} else {
-					doc.clear();
-
-					doc[(String)pin]["id"]    = sensor_id[i];
-					doc[(String)pin]["tempF"] = sensor_value[i];
-				}
+				doc[(String)pin]["id"]    = sensor_id[i];
+				doc[(String)pin]["tempF"] = sensor_value[i];
 			}
 		}
 	}
@@ -196,7 +192,6 @@ JsonDocument process_ds18b20() {
 
 	return doc;
 }
-
 
 JsonDocument process_extra(JsonDocument doc, String header) {
 	if (is_simple_request(header)) {
