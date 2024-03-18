@@ -6,6 +6,8 @@
 #include "OneWire.h"
 #include "DallasTemperature.h"
 
+#include <ArduinoJson.h>
+
 // Skip pins #0 and #1 cuz they're Serial RX/TX
 // Ethernet shield pins: https://arduino.stackexchange.com/questions/33019/arduino-ethernet-shield-on-arduino-mega-pin-usage
 // Pins #10, #50, #51, #52, and #53 are used for Ethernet on the Mega.
@@ -23,11 +25,7 @@ EthernetServer server(80);
 
 ///////////////////////////////////////////////////////////////////////
 
-uint32_t hits            = 0;
-uint8_t alast_val        = apins[sizeof(apins)/sizeof(apins[0]) - 1];
-uint8_t dlast_val        = dpins[sizeof(dpins)/sizeof(dpins[0]) - 1];
-uint8_t dht11_last_val   = dht11_pins[sizeof(dht11_pins)/sizeof(dht11_pins[0]) - 1];
-uint8_t ds18b20_last_val = ds18b20_pins[sizeof(ds18b20_pins)/sizeof(ds18b20_pins[0]) - 1];
+uint32_t hits = 0;
 
 void setup() {
 	Serial.begin(115200);
@@ -62,8 +60,6 @@ void loop() {
 	// listen for incoming clients
 	EthernetClient client = server.available();
 
-	char html[1024] = "";
-
 	if (client) {
 		// Serial.println("new client");
 		query_start = millis();
@@ -95,18 +91,20 @@ void loop() {
 				// We've got enough info we can start sending
 				// a response now.
 				///////////////////////////////////////////////
-				build_response(html, header);
+				String resp = build_response(header);
 
+				/*
 				String remote_ip     = ip_2_string(client.remoteIP());
-				int16_t content_size = strlen(html);
+				int16_t content_size = resp.length();
 				String url           = extract_url(header);
 
 				char buf[64] = "";
 				snprintf(buf, 64, "Sent %i bytes to %s for %s\r\n", content_size, remote_ip.c_str(), url.c_str());
 				Serial.print(buf);
+				*/
 
-				// send the HTML to the client
-				client.print(html);
+				// send the response HTTP data to the client
+				client.print(resp);
 
 				//////////////////////////////////////////////////////////////
 				//////////////////////////////////////////////////////////////
@@ -131,59 +129,39 @@ void loop() {
 	}
 }
 
-char *process_analog(char str[]) {
-	sprintf(eos(str),"\"analog\": {");
+JsonDocument process_analog() {
+	JsonDocument doc;
 
 	for (int pin : apins) {
 		int pval = analogRead(pin);
-
-		sprintf(eos(str), "\"%d\":%d", pin, pval);
-
-		if (pin != alast_val) {
-			sprintf(eos(str), ",");
-		}
+		doc[pin] = pval;
 	}
 
-	sprintf(eos(str), "},\n"); // Close analog
-
-	return str;
+	return doc;
 }
 
-char *process_digital(char str[]) {
-	sprintf(eos(str), "\"digital\": {");
+JsonDocument process_digital() {
+	JsonDocument doc;
+
 	for (int pin : dpins) {
 		pinMode(pin, INPUT);
+
 		int pval = digitalRead(pin);
-
-		sprintf(eos(str), "\"%d\":%d", pin, pval);
-
-		if (pin != dlast_val) {
-			sprintf(eos(str), ",");
-		}
+		doc[pin] = pval;
 	}
 
-	sprintf(eos(str), "},\n"); // Close digital
-
-	return str;
+	return doc;
 }
 
-char *process_ds18b20(char str[]) {
+JsonDocument process_ds18b20() {
+	static JsonDocument doc;
+
 	static unsigned long last_hit = 0;
-	static char buf[256]          = "";
-	bool too_soon                 = abs(millis() - last_hit) < 2000;
-
-	// Use the last cached line instead
-	if (too_soon) {
-		strncpy(eos(str), buf, strlen(buf));
-		return str;
-	}
-
-	// Start the section
-	sprintf(buf, "\"ds18b20\": {");
+	const bool too_soon           = abs(millis() - last_hit) < 2000;
 
 	// Loop over the ds18b210 pins
 	for (int pin : ds18b20_pins) {
-		int   count = 4;            // Number of sensors to look for
+		int   count = 8;            // Number of sensors to look for
 		char  sensor_id[count][17]; // HEX string of the sensor ID
 		float sensor_value[count];  // Temperatur in F
 
@@ -191,70 +169,58 @@ char *process_ds18b20(char str[]) {
 
 		// Loop over the number of sensors we found
 		if (found == 0) {
-			sprintf(eos(buf), "\"%d\": {}", pin);
+			doc.clear();
+
+			doc[pin]["id"] = "";
 		} else {
 			for (int i = 0; i < found; i++) {
-				char float_buf[6] = "";
-				dtostrf(sensor_value[i], 4,1, float_buf);
+				// Check for too soon
+				if (last_hit && too_soon) {
+					// We don't clear the object and instead use the previous value
+					doc["cached"] = true;
+				// Valid data so we clear the previous object and build new
+				} else {
+					doc.clear();
 
-				sprintf(eos(buf), "\"%d\": {\"id\": \"%s\", \"tempF\": %s}", pin, sensor_id[i], float_buf);
+					doc[pin]["id"]    = sensor_id[i];
+					doc[pin]["tempF"] = sensor_value[i];
+				}
 			}
 		}
-
-		if (pin != ds18b20_last_val) {
-			sprintf(eos(buf), ",");
-		}
 	}
-
-	sprintf(eos(buf), "},\n"); // Close section
-
-	// Copy our temp buffer to the string input
-	strncpy(eos(str), buf, strlen(buf));
 
 	// Store when the last hit was
 	if (!too_soon) {
 		last_hit = millis();
 	}
 
-	return str;
+	return doc;
 }
 
 
-char *process_extra(char str[], String header) {
+void *process_extra(JsonDocument doc, String header) {
 	if (is_simple_request(header)) {
-		sprintf(eos(str), "\"simple\": true,\n");
+		doc["simple"] = true;
 	} else {
-		sprintf(eos(str), "\"simple\": false,\n");
+		doc["simple"] = false;
 	}
 
 	String url = extract_url(header);
-
 	int16_t query_time_ms = millis() - query_start;
 
-	sprintf(eos(str), "\"hits\": %lu,\n", hits);
-	sprintf(eos(str), "\"uptime\": %lu,\n", millis() / 1000);
-	sprintf(eos(str), "\"qps\": %d,\n", hits / (millis() / 1000));
-	sprintf(eos(str), "\"query_ms\": %d,\n", query_time_ms);
-	sprintf(eos(str), "\"free_memory\": %d,\n", freeMemory());
-	sprintf(eos(str), "\"url\": \"%s\"\n", url.c_str());
-
-	return str;
+	doc["hits"]        = hits;
+	doc["uptime"]      = millis() / 1000;
+	doc["qps"]         = hits / (millis() / 1000);
+	doc["query_ms"]    = query_time_ms;
+	doc["free_memory"] = freeMemory();
+	doc["url"]         = url.c_str();
 }
 
-char *process_dht11(char str[]) {
+JsonDocument process_dht11() {
+	static JsonDocument doc;
+
 	static unsigned long last_hit = 0;
-	static char buf[128]          = "";
-	bool too_soon                 = abs(millis() - last_hit) < 5000;
-
-	// Used the last cached line instead
-	if (too_soon) {
-		strncpy(eos(str), buf, strlen(buf));
-		//sprintf(eos(str), "\"dht_cached\": true,\n");
-		return str;
-	}
-
-	// Start building a new string
-	sprintf(buf, "\"dht22\": {");
+	const bool too_soon           = abs(millis() - last_hit) < 5000;
 
 	for (int pin : dht11_pins) {
 		DHT dht(pin, DHT22);
@@ -263,34 +229,29 @@ char *process_dht11(char str[]) {
 		float humid = dht.readHumidity();
 		float tempF = dht.readTemperature(true);
 
-		char temp_buf[6] = "";
-		dtostrf(tempF, 4,1, temp_buf);
-		char humid_buf[6] = "";
-		dtostrf(humid, 4,1, humid_buf);
-
-		// Make sure we get actual data back from the sensor
+		// Invalid data back from sensor
 		if (isnan(humid) || isnan(tempF)) {
-			sprintf(eos(buf), "\"%d\": {\"temp\": -1, \"humid\": -1}", pin);
-		} else {
-			sprintf(eos(buf), "\"%d\": {\"temp\": %s, \"humid\": %s}", pin, temp_buf, humid_buf);
-		}
+			doc.clear();
 
-		if (pin != dht11_last_val) {
-			sprintf(eos(buf), ",");
+			doc[pin]["temp"]  = -1;
+			doc[pin]["humid"] = -1;
+		// Request too soon
+		} else if (last_hit && too_soon) {
+			// We don't clear the object and instead use the previous value
+			doc["cached"] = true;
+		} else {
+			doc.clear();
+
+			doc[pin]["temp"]  = tempF;
+			doc[pin]["humid"] = humid;
 		}
 	}
 
-	sprintf(eos(buf), "},\n"); // Close section
-
-	// Copy our temp buffer to the string input
-	strncpy(eos(str), buf, strlen(buf));
-
-	// Store when the last hit was
 	if (!too_soon) {
 		last_hit = millis();
 	}
 
-	return str;
+	return doc;
 }
 
 char *eos(char str[]) {
@@ -321,39 +282,40 @@ bool is_simple_request(String header) {
 	return simple;
 }
 
-void build_response(char* html, String header) {
+String build_response(String header) {
+	JsonDocument doc;
+
 	bool simple = is_simple_request(header);
 
 	////////////////////////////////////////////////
 
 	//Serial.print("Sending respond packet");
 
-	// HTTP Header
-	sprintf(eos(html), "HTTP/1.1 200 OK\r\n");
-	sprintf(eos(html), "Content-Type: application/json\r\n");
-	sprintf(eos(html), "Connection: close\r\n");
-	sprintf(eos(html), "\r\n");
+	String resp_headers = "";
 
-	// Start the JSON block
-	sprintf(eos(html), "{\n");
+	// HTTP Header
+	resp_headers += "HTTP/1.1 200 OK\r\n";
+	resp_headers += "Content-Type: application/json\r\n";
+	resp_headers += "Connection: close\r\n";
+	resp_headers += "\r\n";
 
 	//////////////////////////////////////////////
 
-	process_analog(html);
-	process_digital(html);
+	doc["analog"]  = process_analog();
+	doc["digital"] = process_digital();
 
 	//////////////////////////////////////////////
 
 	if (!simple) {
-		process_dht11(html);
-		process_ds18b20(html);
+		doc["dht22"]   = process_dht11();
+		doc["ds18b20"] = process_ds18b20();
 	}
 
 	// Footer information
-	process_extra(html, header);
+	process_extra(doc, header);
 
-	// Close the whole JSON
-	sprintf(eos(html), "}\n");
+	String json_str = "";
+	serializeJson(doc, json_str);
 }
 
 int get_ds_temp(byte pin, char sensor_id[][17], float* sensor_value) {
