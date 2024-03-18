@@ -134,7 +134,7 @@ JsonDocument process_analog() {
 
 	for (int pin : apins) {
 		int pval = analogRead(pin);
-		doc[pin] = pval;
+		doc[(String)pin] = pval;
 	}
 
 	return doc;
@@ -147,7 +147,7 @@ JsonDocument process_digital() {
 		pinMode(pin, INPUT);
 
 		int pval = digitalRead(pin);
-		doc[pin] = pval;
+		doc[(String)pin] = pval;
 	}
 
 	return doc;
@@ -171,7 +171,7 @@ JsonDocument process_ds18b20() {
 		if (found == 0) {
 			doc.clear();
 
-			doc[pin]["id"] = "";
+			doc[(String)pin]["id"] = "";
 		} else {
 			for (int i = 0; i < found; i++) {
 				// Check for too soon
@@ -182,8 +182,8 @@ JsonDocument process_ds18b20() {
 				} else {
 					doc.clear();
 
-					doc[pin]["id"]    = sensor_id[i];
-					doc[pin]["tempF"] = sensor_value[i];
+					doc[(String)pin]["id"]    = sensor_id[i];
+					doc[(String)pin]["tempF"] = sensor_value[i];
 				}
 			}
 		}
@@ -233,8 +233,8 @@ JsonDocument process_dht11() {
 		if (isnan(humid) || isnan(tempF)) {
 			doc.clear();
 
-			doc[pin]["temp"]  = -1;
-			doc[pin]["humid"] = -1;
+			doc[(String)pin]["temp"]  = -1;
+			doc[(String)pin]["humid"] = -1;
 		// Request too soon
 		} else if (last_hit && too_soon) {
 			// We don't clear the object and instead use the previous value
@@ -242,8 +242,8 @@ JsonDocument process_dht11() {
 		} else {
 			doc.clear();
 
-			doc[pin]["temp"]  = tempF;
-			doc[pin]["humid"] = humid;
+			doc[(String)pin]["temp"]  = tempF;
+			doc[(String)pin]["humid"] = humid;
 		}
 	}
 
