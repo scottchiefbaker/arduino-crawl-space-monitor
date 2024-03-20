@@ -198,7 +198,9 @@ JsonDocument process_ds18b20() {
 	return doc;
 }
 
-JsonDocument process_extra(JsonDocument doc, String header) {
+JsonDocument process_extra(String header) {
+	JsonDocument doc;
+
 	if (is_simple_request(header)) {
 		doc["simple"] = true;
 	} else {
@@ -316,7 +318,7 @@ String build_response(String header) {
 		doc["ds18b20"] = process_ds18b20();
 
 		// Various stats
-		doc = process_extra(doc, header);
+		doc["stats"] = process_extra(header);
 	}
 
 	String json_str = "";
