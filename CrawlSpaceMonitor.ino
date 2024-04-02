@@ -14,8 +14,9 @@
 // Pin #4 is used by the SD card
 uint8_t dpins[]        = { 2,3,4,5,6,7,8,9,14,15,16,17,18 };
 uint8_t apins[]        = { 0,1,2,3,4,5 };
-uint8_t dht11_pins[]   = { 28 };
-uint8_t ds18b20_pins[] = { 22, 23, 24, 25, 29 };
+uint8_t dht22_pins[]   = { 13 };
+//uint8_t ds18b20_pins[] = { 22, 23, 24, 25, 29 };
+uint8_t ds18b20_pins[] = { 24, 25 };
 uint32_t query_start   = 0;
 
 byte mac[] = { 0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xCC };
@@ -220,7 +221,7 @@ JsonDocument process_extra(String header) {
 	return doc;
 }
 
-JsonDocument process_dht11() {
+JsonDocument process_dht22() {
 	static JsonDocument doc;
 
 	static unsigned long last_hit = 0;
@@ -233,7 +234,7 @@ JsonDocument process_dht11() {
 		doc.clear();
 	}
 
-	for (int pin : dht11_pins) {
+	for (int pin : dht22_pins) {
 		// Don't bother processing
 		if (too_soon) {
 			break;
@@ -314,7 +315,7 @@ String build_response(String header) {
 	//////////////////////////////////////////////
 
 	if (!simple) {
-		doc["dht22"]   = process_dht11();
+		doc["dht22"]   = process_dht22();
 		doc["ds18b20"] = process_ds18b20();
 
 		// Various stats
