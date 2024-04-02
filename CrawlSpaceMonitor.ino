@@ -182,7 +182,7 @@ JsonDocument process_ds18b20() {
 
 		// Loop over the number of sensors we found
 		if (found == 0) {
-			doc[(String)pin]["id"] = "";
+			//doc[(String)pin]["id"] = "";
 		} else {
 			for (int i = 0; i < found; i++) {
 				doc[(String)pin]["id"]    = sensor_id[i];
