@@ -181,9 +181,7 @@ JsonDocument process_ds18b20() {
 		const int found = get_ds_temp(pin, sensor_id, sensor_value);
 
 		// Loop over the number of sensors we found
-		if (found == 0) {
-			//doc[(String)pin]["id"] = "";
-		} else {
+		if (found > 0) {
 			for (int i = 0; i < found; i++) {
 				//doc[sensor_id[i]]["id"]    = sensor_id[i];
 				doc[sensor_id[i]]["tempF"] = sensor_value[i];
