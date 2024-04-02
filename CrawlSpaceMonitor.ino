@@ -185,8 +185,9 @@ JsonDocument process_ds18b20() {
 			//doc[(String)pin]["id"] = "";
 		} else {
 			for (int i = 0; i < found; i++) {
-				doc[(String)pin]["id"]    = sensor_id[i];
-				doc[(String)pin]["tempF"] = sensor_value[i];
+				//doc[sensor_id[i]]["id"]    = sensor_id[i];
+				doc[sensor_id[i]]["tempF"] = sensor_value[i];
+				doc[sensor_id[i]]["pin"]   = pin;
 			}
 		}
 	}
