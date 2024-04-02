@@ -36,14 +36,14 @@ void setup() {
 
 	// Check for Ethernet hardware present
 	if (Ethernet.hardwareStatus() == EthernetNoHardware) {
-		Serial.println("Ethernet shield was not found.  Sorry, can't run without hardware. :(");
+		Serial.println(F("Ethernet shield was not found.  Sorry, can't run without hardware. :("));
 		while (true) {
 			delay(1); // do nothing, no point running without Ethernet hardware
 		}
 	}
 
 	if (Ethernet.linkStatus() == LinkOFF) {
-		Serial.println("Ethernet cable is not connected.");
+		Serial.println(F("Ethernet cable is not connected."));
 	}
 
 	// Set all the digital pin to input
@@ -53,7 +53,7 @@ void setup() {
 
 	// start the WebServer
 	server.begin();
-	Serial.print("WebServer is at ");
+	Serial.print(F("WebServer is at "));
 	Serial.println(Ethernet.localIP());
 }
 
@@ -338,12 +338,12 @@ int get_ds_temp(byte pin, char sensor_id[][17], float* sensor_value) {
 
 	while (ds.search(addr)) {
 		if (OneWire::crc8(addr, 7) != addr[7]) {
-			Serial.println("CRC is not valid!");
+			Serial.println(F("CRC is not valid!"));
 			return -1000;
 		}
 
 		if (addr[0] != 0x10 && addr[0] != 0x28) {
-			Serial.print("Device is not recognized");
+			Serial.print(F("Device is not recognized"));
 			return -1001;
 		}
 
