@@ -174,11 +174,11 @@ JsonDocument process_ds18b20() {
 			break;
 		}
 
-		int   count = 8;            // Number of sensors to look for
+		const int count = 8;        // Number of sensors to look for
 		char  sensor_id[count][17]; // HEX string of the sensor ID
 		float sensor_value[count];  // Temperatur in F
 
-		int found = get_ds_temp(pin, sensor_id, sensor_value);
+		const int found = get_ds_temp(pin, sensor_id, sensor_value);
 
 		// Loop over the number of sensors we found
 		if (found == 0) {
@@ -243,8 +243,8 @@ JsonDocument process_dht22() {
 		DHT dht(pin, DHT22);
 		dht.begin();
 
-		float humid = dht.readHumidity();
-		float tempF = dht.readTemperature(true);
+		const float humid = dht.readHumidity();
+		const float tempF = dht.readTemperature(true);
 
 		// Invalid data back from sensor
 		if (isnan(humid) || isnan(tempF)) {
@@ -268,8 +268,8 @@ char *eos(char str[]) {
 }
 
 String extract_url(String headers) {
-	int16_t url_start = headers.indexOf("GET ");
-	int16_t url_end   = headers.indexOf(" ", url_start + 5);
+	const int16_t url_start = headers.indexOf("GET ");
+	const int16_t url_end   = headers.indexOf(" ", url_start + 5);
 
 	String url = "";
 	if (url_start >= 0) {
@@ -293,7 +293,7 @@ bool is_simple_request(String header) {
 String build_response(String header) {
 	JsonDocument doc;
 
-	bool simple = is_simple_request(header);
+	const bool simple = is_simple_request(header);
 
 	////////////////////////////////////////////////
 
